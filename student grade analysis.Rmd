@@ -12,6 +12,8 @@ library(ggplot2)
 library(corrplot)
 library(caret)
 library(scales)
+library('rpart')
+library('randomForest')
 library(gridExtra)
 select <- dplyr::select
 ```
@@ -63,6 +65,7 @@ data %>%
 increasing <- data[data$G3 - data$G2 > 0 & data$G2 - data$G1 > 0 , ]
 decreasing <- data[data$G3 - data$G2 < 0 & data$G2 - data$G1 < 0 , ]
 
+
 increasing$setting <- "increasing"
 decreasing$setting <- "decreasing"
 
@@ -79,7 +82,7 @@ summary(decreasing)
 
 creasing %>%
   group_by(setting, school) %>%
-  summarise(n = n()) %>%
+  dplyr::summarise(n = n()) %>%
   mutate(freq = round(n / sum(n) *100, 1)) %>%
   ggplot(aes(school, freq, fill = setting)) +
   geom_bar(stat = "identity", position = position_dodge2(0.9)) +
@@ -444,21 +447,72 @@ decreasing %>%
            tl.col = "black",addCoef.col = "black")
 ```
 
+
+```{r}
+# data$score <- "noChange"
+# data$score[(data$G3 - data$G2 > 0 & data$G2 - data$G1 > 0)] <- "increasing"
+# data$score[(data$G3 - data$G2 < 0 & data$G2 - data$G1 < 0)] <- "decreasing"
+# data$score <- as.factor(data$score)
+
+colnames(creasing)
+
+### Logistic Regression
+glm.fit <- glm(setting ~ age + address + Medu + Fedu + reason + studytime + failures + famrel+ goout + health + absences, data= creasing, family = binomial(link=logit))
+summary(glm.fit)
+
+### Random Forest
+rf_data <- creasing %>%
+  select(age,address, Medu, Fedu, reason, studytime, failures, famrel, goout, health, absences, setting)
+
+d_index <- createDataPartition(rf_data$setting, p = 0.6, list = F)
+train_data <- rf_data[d_index,]
+test_data <- rf_data[-d_index,]
+
+rf.1 <- randomForest(x = train_data[,-12],  y = train_data[,12],importtance = TRUE, ntree = 1000)
+rf.1
+varImpPlot(rf.1)
+
+
+set.seed(1234)
+train_data <- train_data %>%
+  select(-address, -studytime)
+
+test_data <- test_data %>%
+  select(-address, -studytime)
+
+rf.2 <- randomForest(x = train_data[,-10],  y = train_data[,10],importtance = TRUE, ntree = 1000)
+rf.2
+varImpPlot(rf.2)
+
+cv10_1 <- createMultiFolds(train_data[,10], k = 10, times = 10)
+
+ctrl_1 <- trainControl(method = "repeatedcv", number = 10, repeats = 10, index = cv10_1)
+
+set.seed(3231)
+rf.5 <- train(x = train_data[,-10], y = train_data[,10], method = "rf", tuneLength = 3, ntree = 1000, trControl = ctrl_1)
+
+rf.5
+
+pr.rf = predict(rf.5, newdata = test_data)
+
+confusionMatrix(pr.rf, test_data$setting)
+```
+
 ### Conclusion
 
 성적이 떨어지는 여러 가지 요인이 있겠지만 아래의 요소들이 어느정도 차이를 보이고 있다.<br>
-큰 차이를 보이는 것도 있고 그렇지 않은 것도 있음.<br><br>
+큰 차이를 보이는 것도 있고 그렇지 않은 것도 있음.<br>
+Logistic Regression과 Random Forest가 중요한 유의미한 값이 다르게 나왔지만<br>
+다음의 시각화 + LG + RF를 합쳐보았을 때 다음의 요소가 중요해 보인다.<br><br>
 
-1. 나이<br>
-2. 시골 vs 도시 <br>
-3. 엄마 - 아빠의 교육 <br>
-4. 진학 이유 <br>
-5. 공부 시간 - 너무 당연한 ...? <br>
-6. 수업 실패?<br>
-7. 가족과의 관계 <br>
-8. 밖에서 친구 만나는 것 <br>
-9. 건강 <br>
-10. 결석 - 성적은 떨어지지만 결석은 하지 않는...?<br>
+1. 나이 // 애매함<br>
+2. 부모님 교육 수준 // 애매함<br>
+3. 학교 진학 이유 <br>
+4. 수업 실패 경험 <br>
+5. 밖에서 친구와 노는 것<br>
+6. 결석<br>
+
+
 
 <br><br><br><br>
 
