@@ -45,9 +45,14 @@ data %>%
 data %>%
   select_if(is.factor) %>%
   summary()
+
+## 데이터 확인 완료
+
 ```
+  
+  
 
-
+  
 ## 성적 
 ### 하향 VS 상향
 
