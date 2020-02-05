@@ -447,6 +447,39 @@ decreasing %>%
            tl.col = "black",addCoef.col = "black")
 ```
 
+### 여담 - 결석에 관하여...
+
+결석이 많을수록 성적은 떨어지기 때문에 <br>
+G3 시험에서는 결석이 많은 사람이 불리(?)하다. <br>
+
+
+```{r, warning=FALSE, message=FALSE}
+absences_value <- matrix(0, nrow = max(data$absences), ncol = 3)
+for(i in 1 : max(data$absences)){
+    absences_value[i,] <- data[data$absences > i,c("G1","G2","G3")] %>%
+    summarise_all(funs(mean(.))) %>%
+    as.matrix()
+}
+
+absences_value <- as.data.frame(absences_value, na.rm = T)
+absences_value$row <- seq.int(1:nrow(absences_value))
+
+absences_value %>%
+ggplot() +
+geom_point(mapping = aes(row, V1),col = "red", alpha = 0.5) +
+geom_smooth(method = "lm",mapping = aes(row, V1),col = "red", alpha = 0.5,se = FALSE) +
+geom_point(mapping = aes(row, V2),col = "blue", alpha = 0.5) +
+geom_smooth(method = "lm",mapping = aes(row, V2),col = "blue", alpha = 0.5,se = FALSE) +
+geom_point(mapping = aes(row, V3),col = "green", alpha = 0.5) +
+geom_smooth(method = "lm",mapping = aes(row, V3),col = "green", alpha = 0.5,se = FALSE) +
+theme_bw() +
+labs(x = "Row Number", y = "Score")
+
+```
+
+## RF & LG
+Random Forest와 Logistic Regrssion으로 
+어떤 변수가 중요한지 찾아보자.
 
 ```{r}
 # data$score <- "noChange"
@@ -464,38 +497,31 @@ summary(glm.fit)
 rf_data <- creasing %>%
   select(age,address, Medu, Fedu, reason, studytime, failures, famrel, goout, health, absences, setting)
 
-d_index <- createDataPartition(rf_data$setting, p = 0.6, list = F)
-train_data <- rf_data[d_index,]
-test_data <- rf_data[-d_index,]
 
-rf.1 <- randomForest(x = train_data[,-12],  y = train_data[,12],importtance = TRUE, ntree = 1000)
+rf.1 <- randomForest(x = rf_data[,-12],  y = rf_data[,12],importtance = TRUE, ntree = 1000)
 rf.1
 varImpPlot(rf.1)
 
 
 set.seed(1234)
-train_data <- train_data %>%
-  select(-address, -studytime)
+rf_data <- rf_data %>%
+  select(-address, -Fedu)
+# 
+# test_data <- test_data %>%
+#   select(-address, -Fedu)
 
-test_data <- test_data %>%
-  select(-address, -studytime)
-
-rf.2 <- randomForest(x = train_data[,-10],  y = train_data[,10],importtance = TRUE, ntree = 1000)
+rf.2 <- randomForest(x = rf_data[,-10],  y = rf_data[,10],importtance = TRUE, ntree = 1000)
 rf.2
 varImpPlot(rf.2)
 
-cv10_1 <- createMultiFolds(train_data[,10], k = 10, times = 10)
-
+cv10_1 <- createMultiFolds(rf_data[,10], k = 10, times = 10)
 ctrl_1 <- trainControl(method = "repeatedcv", number = 10, repeats = 10, index = cv10_1)
-
 set.seed(3231)
-rf.5 <- train(x = train_data[,-10], y = train_data[,10], method = "rf", tuneLength = 3, ntree = 1000, trControl = ctrl_1)
+rf.5 <- train(x = rf_data[,-10], y = rf_data[,10], method = "rf", tuneLength = 3, ntree = 1000, trControl = ctrl_1)
 
-rf.5
+print(rf.5)
+plot(rf.5)
 
-pr.rf = predict(rf.5, newdata = test_data)
-
-confusionMatrix(pr.rf, test_data$setting)
 ```
 
 ### Conclusion
